@@ -1,0 +1,13 @@
+# SyncWatch - Service for SyncWatch
+
+[Unit]
+Description=SyncWatch (Service to synchronize 2 locations on file or folder change)
+After=rc-local.service
+
+[Service]
+Type=simple
+ExecStart=/opt/syncwatch/syncwatch.py
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
