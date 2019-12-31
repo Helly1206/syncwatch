@@ -30,6 +30,8 @@ The parameters per sync can be modified:
 	<initsync> defines whether to sync on the program start. Default is false.
 	<reversesync> defines whether to sync to source when a file or folder on the target changes.
 					Default is false.
+	<retry> defines whether to keep retrying setting up a connection, e.g. when source or destination
+  					is not mounted (yet). Retry is done silent with a 10 second delay. Default is false.
 	The following options are all rsync options. The a (archive) option is always added.
 	<delete> defines whether to delete file on the destination (see rsync delete). Default is true.
 	<exclude> defines patterns to be excluded from syncing (see rsync exclude). Multiple patterns

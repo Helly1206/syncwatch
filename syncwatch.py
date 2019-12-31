@@ -9,13 +9,14 @@
 #########################################################
 
 ####################### GLOBALS #########################
-VERSION      = "0.81"
+VERSION      = "0.82"
 XML_FILENAME = "syncwatch.xml"
 LOG_FILENAME = "syncwatch.log"
 SYNC_TOOL    = "rsync"
 LOG_MAXSIZE  = 100*1024*1024
 DEF_DELAY    = 10
 SYNC_WAIT    = 1
+RETRY_DELAY  = 10
 
 ####################### IMPORTS #########################
 import sys
@@ -287,8 +288,6 @@ class SyncHandler(FileSystemEventHandler):
         if li not in self.sync['list1']:
             self.sync['list1'].append(li)
     
-    #def doIgnoreFromOwnList
-    
     def doIgnoreFromList(self, event):
         exec = True
         
@@ -307,17 +306,6 @@ class SyncHandler(FileSystemEventHandler):
                         #if path if true then check file or temp based file
                         if self._checkFile(event.src_path, li["path"]):
                             exec=False
-                    
-                    
-                    """
-                    ('/tmp/c', 'test.file') ('/tmp/d', '.test.file.ZoJQ77')
-                    ('/tmp/c', 'test.file') ('/tmp/d', '.test.file.ZoJQ77')
-                    
-                    ('/tmp/c/tivo', 'test.file') ('/tmp/d/tivo', '.test.file.y0uX8C')
-                    ('/tmp/c/tivo', 'test.file') ('/tmp/d/tivo', '.test.file.y0uX8C')
-
-                    """
-
         return exec
     
     def _checkPath(self, src_path, dest_path, psplit = True):
@@ -392,6 +380,7 @@ class SyncWatch(object):
             exit(1)
         
         self.logger.info("Starting SyncWatch")
+        retries = []
                
         for sync in self.syncs:
             if Common.checkkey(sync,'source') and Common.checkkey(sync,'destination'):
@@ -401,9 +390,25 @@ class SyncWatch(object):
                     sync['observer'].schedule(event_handler, path=sync['source'], recursive=True)
                     sync['observer'].start()
                 else:
-                    self.logger.error("Source or destination path doesn't exist for {}, watch not created".format(sync['name']))
+                    if Common.checkkey(sync,'retry'):
+                        self.logger.info("Source or destination path doesn't exist for {}, keep on retrying".format(sync['name']))
+                        retries.append(sync)
+                    else:        
+                        self.logger.error("Source or destination path doesn't exist for {}, watch not created".format(sync['name']))
+                    
             else:
                 self.logger.error("Source or destination path error for {}, watch not created".format(sync['name']))
+        
+        while len(retries)>0:
+            sleep(RETRY_DELAY)
+            for sync in retries:
+                if os.path.isdir(sync['source']) and os.path.isdir(sync['destination']):
+                    event_handler = SyncHandler(self.logger, sync)
+                    sync['observer'] = Observer()
+                    sync['observer'].schedule(event_handler, path=sync['source'], recursive=True)
+                    sync['observer'].start()
+                    retries.remove(sync)
+                    self.logger.info("Source or destination path came online for {}".format(sync['name']))
         
         signal.pause()
         
