@@ -9,7 +9,7 @@
 #########################################################
 
 ####################### GLOBALS #########################
-VERSION      = "0.82"
+VERSION      = "0.83"
 XML_FILENAME = "syncwatch.xml"
 LOG_FILENAME = "syncwatch.log"
 SYNC_TOOL    = "rsync"
@@ -352,6 +352,8 @@ class SyncWatch(object):
         self.syncs = []
         signal.signal(signal.SIGINT, self.exit_app)
         signal.signal(signal.SIGTERM, self.exit_app)
+        self.exitevent = Event()
+        self.exitevent.clear()
         self.logger = logging.getLogger('syncwatch')
         self.logger.setLevel(logging.INFO)
         # create file handler which logs even debug messages
@@ -399,18 +401,25 @@ class SyncWatch(object):
             else:
                 self.logger.error("Source or destination path error for {}, watch not created".format(sync['name']))
         
-        while len(retries)>0:
-            sleep(RETRY_DELAY)
-            for sync in retries:
-                if os.path.isdir(sync['source']) and os.path.isdir(sync['destination']):
-                    event_handler = SyncHandler(self.logger, sync)
-                    sync['observer'] = Observer()
-                    sync['observer'].schedule(event_handler, path=sync['source'], recursive=True)
-                    sync['observer'].start()
-                    retries.remove(sync)
-                    self.logger.info("Source or destination path came online for {}".format(sync['name']))
+        retrycnt = 0
+        while (len(retries)>0) and not self.exitevent.isSet():
+            sleep(1)
+            if retrycnt < RETRY_DELAY-1:
+                retrycnt += 1
+            else:
+                retrycnt = 0
+
+                for sync in retries:
+                    if os.path.isdir(sync['source']) and os.path.isdir(sync['destination']):
+                        event_handler = SyncHandler(self.logger, sync)
+                        sync['observer'] = Observer()
+                        sync['observer'].schedule(event_handler, path=sync['source'], recursive=True)
+                        sync['observer'].start()
+                        retries.remove(sync)
+                        self.logger.info("Source or destination path came online for {}".format(sync['name']))
         
-        signal.pause()
+        if not self.exitevent.isSet():
+            signal.pause()
         
         for sync in self.syncs:
             if Common.checkkey(sync,'observer'):
@@ -524,7 +533,7 @@ class SyncWatch(object):
         return (LoggerPath)
         
     def exit_app(self, signum, frame):
-        pass
+        self.exitevent.set()
     
 #########################################################
 if __name__ == "__main__":
