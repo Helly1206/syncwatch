@@ -1,0 +1,17 @@
+#!/bin/sh
+
+NAME="syncwatch"
+SERVICESCRIPT="$NAME.service"
+SERVICEDIR="/etc/systemd/system"
+OPTIDR="/opt/$NAME"
+
+if [ -f "$SERVICEDIR/$SERVICESCRIPT" ]; then 
+    systemctl stop $SERVICESCRIPT
+    systemctl disable $SERVICESCRIPT
+fi
+
+if [ -d "$OPTDIR" ]; then
+    rm -rf "$OPTDIR"
+fi
+
+exit 0

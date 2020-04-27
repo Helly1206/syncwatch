@@ -1,0 +1,5 @@
+syncwatch (0.84) stable; urgency=low
+
+  * Changed folder structure and added build deb package
+
+ -- Helly1206 <hellyrulez@hotmail.com>  Mon, 27 Apr 2020 20:16:12 +0100

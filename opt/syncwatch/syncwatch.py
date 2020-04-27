@@ -9,7 +9,7 @@
 #########################################################
 
 ####################### GLOBALS #########################
-VERSION      = "0.83"
+VERSION      = "0.84"
 XML_FILENAME = "syncwatch.xml"
 LOG_FILENAME = "syncwatch.log"
 SYNC_TOOL    = "rsync"

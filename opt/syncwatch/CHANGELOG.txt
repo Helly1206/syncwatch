@@ -1,3 +1,6 @@
+[B]0.8.4[/B]
+- Changed folder structure and added build deb package
+
 [B]0.8.3[/B]
 - Fix unable to exit service when sync not found
 

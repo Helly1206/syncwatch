@@ -1,0 +1,12 @@
+#!/bin/sh
+
+NAME="syncwatch"
+SERVICESCRIPT="$NAME.service"
+SERVICEDIR="/etc/systemd/system"
+
+if [ -f "$SERVICEDIR/$SERVICESCRIPT" ]; then 
+    systemctl enable $SERVICESCRIPT
+    systemctl start $SERVICESCRIPT
+fi
+
+exit 0
