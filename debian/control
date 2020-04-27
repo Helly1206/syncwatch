@@ -8,6 +8,6 @@ XB-Plugin-Section: sharing
 
 Package: syncwatch
 Architecture: all
-Depends: python3,
+Depends: rsync, python3,
          ${misc:Depends}
 Description: SyncWatch service to synchronize 2 locations on file or folder change
