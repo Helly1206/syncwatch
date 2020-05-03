@@ -49,6 +49,7 @@ then
 	py3clean .
 	rm -f ./*.deb
 	rm -rf "$DEBFOLDER"/$NAME
+	rm -rf "$DEBFOLDER"/.debhelper
 	rm -f "$DEBFOLDER"/files
 	rm -f "$DEBFOLDER"/files.new
 	rm -f "$DEBFOLDER"/$NAME.*
