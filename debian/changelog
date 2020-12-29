@@ -1,3 +1,9 @@
+syncwatch (0.85) stable; urgency=low
+
+  * Added enable option to enable/ disable a job
+
+ -- Helly1206 <hellyrulez@hotmail.com>  Tue, 29 Dec 2020 16:12:03 +0100
+
 syncwatch (0.84) stable; urgency=low
 
   * Changed folder structure and added build deb package

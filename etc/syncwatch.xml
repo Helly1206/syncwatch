@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!--
+<syncs>
+    <!--
 	This xml file described the syncronizations to be done.
 	
 	Add a sync to syncs to add a synchronization. You can name it anything you like. e.g. mybackup:
@@ -8,6 +9,7 @@
  	</mybackup>
 
 	The parameters per sync can be modified: 
+	    <enabled> enables or disables this syns job. Default is true, optional parameter
 		<source> is the source folder, obligated
 		<destination> is the destination folder, obligated
 		<delay> defines the delay between writing something to the source folder 
@@ -30,8 +32,7 @@
 		<update> defines whether to update files to be synced (see rsync update). Default is true.
 		<options> defines options added to rsync (see rsync manual). Multiple patterns may be comma
 						separated. Contents is not checked. Default is empty.
--->
-<syncs>
+    -->
 	<sync1>
 		<source>/tmp/a</source>
 		<destination>/tmp/b</destination>

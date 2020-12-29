@@ -1,4 +1,4 @@
-SyncWatch v0.8.4
+SyncWatch v0.8.5
 
 SyncWatch service to synchronize 2 locations on file or folder change
 ========= ======= == =========== = ========= == ==== == ====== ======
@@ -20,6 +20,7 @@ Add a sync to syncs to add a synchronization. You can name it anything you like.
 </mybackup>
 
 The parameters per sync can be modified: 
+    <enabled> enables or disables this syns job. Default is true, optional parameter
 	<source> is the source folder, obligated
 	<destination> is the destination folder, obligated
 	<delay> defines the delay between writing something to the source folder 

@@ -1,3 +1,7 @@
+[B]0.8.5[/B]
+- Added enable option to enable/ disable a job
+- Changed default comment position in xml file
+
 [B]0.8.4[/B]
 - Changed folder structure and added build deb package
 

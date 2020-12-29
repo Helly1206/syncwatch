@@ -9,7 +9,7 @@
 #########################################################
 
 ####################### GLOBALS #########################
-VERSION      = "0.84"
+VERSION      = "0.85"
 XML_FILENAME = "syncwatch.xml"
 LOG_FILENAME = "syncwatch.log"
 SYNC_TOOL    = "rsync"
@@ -477,6 +477,9 @@ class SyncWatch(object):
                 cursync['name']=child.tag
                 for toy in child:
                     cursync[toy.tag]=Common.gettype(toy.text)
+                if Common.checkkey(cursync,'enabled') != None and not Common.checkkey(cursync,'enabled'):
+                    self.logger.info("{} is currently disabled and will not be synced".format(cursync['name']))
+                    break
                 cursync['observer']=None
                 origname=cursync['name']
                 cursync['name']=origname+"-->"
