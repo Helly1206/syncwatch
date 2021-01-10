@@ -2,7 +2,7 @@
 
 [Unit]
 Description=SyncWatch (Service to synchronize 2 locations on file or folder change)
-After=rc-local.service
+After=multi-user.target
 
 [Service]
 Type=simple

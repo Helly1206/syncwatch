@@ -1,3 +1,9 @@
+syncwatch (0.95) stable; urgency=low
+
+  * dded timestamp file to sync safely even when a drive is temporarily disabled
+
+ -- Helly1206 <hellyrulez@hotmail.com>  Sun, 10 Jan 2021 13:09:15 +0100
+
 syncwatch (0.85) stable; urgency=low
 
   * Added enable option to enable/ disable a job

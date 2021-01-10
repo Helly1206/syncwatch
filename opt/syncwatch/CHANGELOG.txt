@@ -1,3 +1,7 @@
+[B]0.9.5[/B]
+- Added timestamp file to sync safely even when a drive is temporarily disabled
+- Start syncwatch daemon after multiuser.target to be able to sync after everything initialized
+
 [B]0.8.5[/B]
 - Added enable option to enable/ disable a job
 - Changed default comment position in xml file

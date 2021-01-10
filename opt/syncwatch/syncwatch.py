@@ -9,7 +9,7 @@
 #########################################################
 
 ####################### GLOBALS #########################
-VERSION      = "0.85"
+VERSION      = "0.95"
 XML_FILENAME = "syncwatch.xml"
 LOG_FILENAME = "syncwatch.log"
 SYNC_TOOL    = "rsync"
@@ -17,6 +17,7 @@ LOG_MAXSIZE  = 100*1024*1024
 DEF_DELAY    = 10
 SYNC_WAIT    = 1
 RETRY_DELAY  = 10
+TS_FILENAME  = ".syncwatch"
 
 ####################### IMPORTS #########################
 import sys
@@ -27,7 +28,7 @@ from getopt import getopt, GetoptError
 import logging
 import logging.handlers
 import locale
-from time import sleep
+import time
 from threading import Thread, Timer, Lock, Event
 from subprocess import run, PIPE, DEVNULL
 try:
@@ -70,7 +71,7 @@ class Common(object):
         else:
             retval = None
         return retval
-    
+
     @classmethod
     def gettype(cls, text):
         try:
@@ -88,19 +89,19 @@ class Common(object):
                         retval = text
                 else:
                     retval = None
-                        
+
         return retval
-    
+
     @classmethod
     def which(cls, progr):
         retval = None
-        try: 
+        try:
             result = run(['which', progr], stdout=PIPE, stderr=DEVNULL)
             if result.returncode == 0:
                 retval = result.stdout.decode("utf-8").strip()
             else:
                 retval = None
-        except: 
+        except:
             retval = None
         return retval
 
@@ -116,7 +117,7 @@ class SyncTimer(object):
         self.timerBusy = Event()
         self.timerBusy.clear()
         self.mutex = Lock()
-    
+
     def __del__(self):
         self.mutex.acquire()
         if self.timerBusy and self.timer:
@@ -125,7 +126,7 @@ class SyncTimer(object):
         del self.timerBusy
         del self.mutex
         del self.timer
-    
+
     def start(self):
         self.mutex.acquire()
         if self.timerBusy.isSet() and self.timer:
@@ -138,7 +139,7 @@ class SyncTimer(object):
             self.timer.start()
             self.timerBusy.set()
         self.mutex.release()
-    
+
     def clear(self):
         self.mutex.acquire()
         if self.timerBusy.isSet() and self.timer:
@@ -149,7 +150,7 @@ class SyncTimer(object):
 
 #########################################################
 # Class : rsyncThread                                   #
-#########################################################        
+#########################################################
 class rsyncThread(Thread):
     def __init__(self, logger, sync, callback):
         self.sync=sync
@@ -157,10 +158,10 @@ class rsyncThread(Thread):
         self.callback=callback
         Thread.__init__(self)
         self.setDaemon(False)
-        
+
     def __del__(self):
         pass
-    
+
     def run(self):
         opts=self._rsyncbuildopts()
         result = run(opts, stdout=PIPE, stderr=PIPE)
@@ -174,14 +175,14 @@ class rsyncThread(Thread):
             if result.stderr.decode("utf-8").strip():
                 self.logger.info("{}: Error:\n{}".format(self.sync['name'],result.stderr.decode("utf-8").strip()))
         self.callback()
-        
+
     def _rsyncbuildopts(self):
         if not Common.checkkey(self.sync,'source') or not Common.checkkey(self.sync,'destination'):
             return None
         params=[]
         params.append(Common.which(SYNC_TOOL))
         opt="-Pa"
-        
+
         if Common.checkkey(self.sync,'compress'):
             opt=opt+"z"
         if Common.checkkey(self.sync,'update'):
@@ -191,6 +192,7 @@ class rsyncThread(Thread):
             params.append("--delete")
         if Common.checkkey(self.sync,'exclude'):
             excludes=self.sync['exclude'].split(',')
+            excludes.append(TS_FILENAME)
             for exclude in excludes:
                 params.append("--exclude={}".format(exclude.strip()))
         if Common.checkkey(self.sync,'include'):
@@ -202,28 +204,29 @@ class rsyncThread(Thread):
             for option in options:
                 params.append("{}".format(option.strip()))
         params.append(os.path.join(self.sync['source'],''))
-        params.append(os.path.normpath(self.sync['destination']))      
-        
+        params.append(os.path.normpath(self.sync['destination']))
+
         return params
 
 #########################################################
 # Class : rsync                                         #
 #########################################################
-class rsync(object): 
-    def __init__(self, logger, sync):
+class rsync(object):
+    def __init__(self, logger, sync, callback = None):
         self.sync=sync
         self.logger=logger
+        self.callback = callback
         self.syncThread=None
         self.waitsync=Event()
         self.waitsync.clear()
         self.sync['1'].set()
-    
+
     def __del__(self):
         if self.syncThread:
             self.syncThread.join()
         del self.waitsync
         del self.sync['1']
-        
+
     def __call__(self):
         if self.syncThread:
             if self.syncThread.isAlive():
@@ -231,23 +234,25 @@ class rsync(object):
                 return
         self._startSync()
         return
-    
+
     def _startSync(self):
         self.sync['1'].clear()
         self.logger.info("{}: Synchronization started".format(self.sync['name']))
         self.syncThread = rsyncThread(self.logger, self.sync, self._Callback)
         self.syncThread.start()
-        
+
     def _Callback(self):
         self.logger.info("{}: Synchronization finished".format(self.sync['name']))
         if self.waitsync.isSet():
             self._startSync()
             self.waitsync.clear()
         # wait for synchronization with events in list
-        sleep(SYNC_WAIT)
+        time.sleep(SYNC_WAIT)
         self.sync['1'].set()
         self.sync['list1'].clear()
-    
+        if self.callback:
+            self.callback()
+
 #########################################################
 # Class : SyncHandler                                   #
 #########################################################
@@ -255,11 +260,12 @@ class SyncHandler(FileSystemEventHandler):
     def __init__(self, logger, sync):
         self.sync = sync
         self.logger = logger
+        self.tsFail = False
         self.logger.info("{}: Starting watch".format(self.sync['name']))
         if not Common.checkkey(sync,'delay'):
             self.logger.info("{}: No sync delay set with <delay>, default to {} seconds".format(self.sync['name'],DEF_DELAY))
             sync['delay']=DEF_DELAY
-        self.rsync=rsync(logger, sync)
+        self.rsync=rsync(logger, sync, self._Callback)
         self.timer=SyncTimer(sync['delay'], sync['resettimer'], self.onTimer)
         if Common.checkkey(sync,'initsync'):
             self.on_any_event(None)
@@ -268,7 +274,7 @@ class SyncHandler(FileSystemEventHandler):
         self.logger.info("{}: Stopping watch".format(self.sync['name']))
         del self.timer
         del self.rsync
-        
+
     def on_any_event(self, event):
         if not event:
             self.logger.info("{}: Execute initial sync".format(self.sync['name']))
@@ -277,20 +283,22 @@ class SyncHandler(FileSystemEventHandler):
             exec = True
             if self.sync['2']:
                 if not self.sync['2'].isSet():
-                    exec=self.doIgnoreFromList(event)
+                    exec = self.doIgnoreFromList(event)
+            if os.path.split(event.src_path)[1] == TS_FILENAME:
+                exec = False
             if exec:
                 self.addToList(event)
                 self.logger.info("{}: {} event detected on {}".format(self.sync['name'], event.event_type, event.src_path))
                 self.timer.start()
-        
+
     def addToList(self, event):
         li = {"type":event.event_type, "dir":event.is_directory, "path":event.src_path}
         if li not in self.sync['list1']:
             self.sync['list1'].append(li)
-    
+
     def doIgnoreFromList(self, event):
         exec = True
-        
+
         if event.is_directory:
             if os.path.normpath(event.src_path) == os.path.normpath(self.sync["source"]):
                 exec = False
@@ -299,7 +307,7 @@ class SyncHandler(FileSystemEventHandler):
                     if li["dir"]:
                         if self._checkPath(event.src_path, li["path"], False):
                             exec=False
-        else: 
+        else:
             for li in self.sync['list2']:
                 if not li["dir"]:
                     if self._checkPath(event.src_path, li["path"]):
@@ -307,7 +315,7 @@ class SyncHandler(FileSystemEventHandler):
                         if self._checkFile(event.src_path, li["path"]):
                             exec=False
         return exec
-    
+
     def _checkPath(self, src_path, dest_path, psplit = True):
         if psplit:
             p1 = os.path.split(src_path)
@@ -318,13 +326,13 @@ class SyncHandler(FileSystemEventHandler):
         p1=p1 + (self._getPathPart(p1[0],self.sync["source"]),)
         p2=p2 + (self._getPathPart(p2[0],self.sync["destination"]),)
         return p1[2] == p2[2]
-    
+
     def _getPathPart(self, src_path, cmp_path):
         new_path = ""
         if src_path.startswith(os.path.normpath(cmp_path)):
             new_path=src_path.replace(os.path.normpath(cmp_path),"")
         return new_path
-    
+
     def _checkFile(self, src_path, dest_path):
         same = False
         p1 = os.path.split(src_path)
@@ -332,18 +340,67 @@ class SyncHandler(FileSystemEventHandler):
 
         if p1[1] == p2[1]:
             same = True
-        elif p1[1].find("."+p2[1]+'.') == 0:
+        elif p1[1].find('.'+p2[1]+'.') == 0:
             same = True
         return same
-        
+
+    def _checkTsValid(self):
+        srcTs = -1
+        dstTs = -1
+        srcTsPath = os.path.join(self.sync["source"], TS_FILENAME)
+        dstTsPath = os.path.join(self.sync["destination"], TS_FILENAME)
+        if os.path.isfile(srcTsPath):
+            try:
+                with open(srcTsPath, "r") as srcTs_file:
+                    srcTs = float(srcTs_file.read())
+            except:
+                srcTs = 0
+        if os.path.isfile(dstTsPath):
+            try:
+                with open(dstTsPath, "r") as dstTs_file:
+                    dstTs = float(dstTs_file.read())
+            except:
+                dstTs = 0
+        return ((srcTs>0) and (dstTs>0) and (srcTs == dstTs)) or ((srcTs == -1) and (dstTs == -1))
+
+    def _updateTs(self):
+        retval = True
+        srcTsPath = os.path.join(self.sync["source"], TS_FILENAME)
+        dstTsPath = os.path.join(self.sync["destination"], TS_FILENAME)
+        ts = time.time()
+        try:
+            with open(srcTsPath, "w") as srcTs_file:
+                srcTs_file.write(str(ts))
+        except:
+            retval = False
+        if retval:
+            try:
+                with open(dstTsPath, "w") as dstTs_file:
+                    dstTs_file.write(str(ts))
+            except:
+                retval = False
+        return retval
+
+    def _Callback(self):
+        self._updateTs()
+
     def onTimer(self):
         self.timer.clear()
         if self.sync['2']:
             if not self.sync['2'].isSet():
                 self.logger.info("{}: Waiting on reverse action to finish".format(self.sync['name']))
                 self.sync['2'].wait()
-        self.rsync()
-        
+        if self._checkTsValid():
+            if self.tsFail:
+                self.tsFail = False
+                self.logger.info("{}: Timestamp mismatch fixed".format(self.sync['name']))
+            self.rsync()
+        else:
+            if not self.tsFail:
+                self.tsFail = True
+                self.logger.error("{}: Timestamp mismatch, keep retrying ...".format(self.sync['name']))
+            self.timer.start() # try again at timeout
+
 #########################################################
 # Class : SyncWatch                                     #
 #########################################################
@@ -374,16 +431,16 @@ class SyncWatch(object):
         logging.shutdown()
 
     def run(self, argv):
-        self.parseopts(argv)
         self.GetXML()
-        
+        self.parseopts(argv)
+
         if not Common.which(SYNC_TOOL):
             self.logger.error("{} not found, please install {} before running this program".format(SYNC_TOOL, SYNC_TOOL))
             exit(1)
-        
+
         self.logger.info("Starting SyncWatch")
         retries = []
-               
+
         for sync in self.syncs:
             if Common.checkkey(sync,'source') and Common.checkkey(sync,'destination'):
                 if os.path.isdir(sync['source']) and os.path.isdir(sync['destination']):
@@ -395,15 +452,15 @@ class SyncWatch(object):
                     if Common.checkkey(sync,'retry'):
                         self.logger.info("Source or destination path doesn't exist for {}, keep on retrying".format(sync['name']))
                         retries.append(sync)
-                    else:        
+                    else:
                         self.logger.error("Source or destination path doesn't exist for {}, watch not created".format(sync['name']))
-                    
+
             else:
                 self.logger.error("Source or destination path error for {}, watch not created".format(sync['name']))
-        
+
         retrycnt = 0
         while (len(retries)>0) and not self.exitevent.isSet():
-            sleep(1)
+            time.sleep(SYNC_WAIT)
             if retrycnt < RETRY_DELAY-1:
                 retrycnt += 1
             else:
@@ -417,21 +474,21 @@ class SyncWatch(object):
                         sync['observer'].start()
                         retries.remove(sync)
                         self.logger.info("Source or destination path came online for {}".format(sync['name']))
-        
+
         if not self.exitevent.isSet():
             signal.pause()
-        
+
         for sync in self.syncs:
             if Common.checkkey(sync,'observer'):
                 sync['observer'].stop()
                 sync['observer'].join()
-        
+
         self.logger.info("SyncWatch Ready")
 
     def parseopts(self, argv):
         self.title()
         try:
-            opts, args = getopt(argv,"hv",["help","version"])
+            opts, args = getopt(argv,"hvc",["help","version","clear"])
         except GetoptError:
             print("Enter 'SyncWatch -h' for help")
             exit(2)
@@ -441,12 +498,38 @@ class SyncWatch(object):
                 print("         SyncWatch <args>")
                 print("         -h, --help   : this help file")
                 print("         -v, --version: print version information")
+                print("         -c, --clear <sync>: clears timestamp for <sync>")
                 print("         <no argument>: run as daemon")
                 exit()
             elif opt in ("-v", "--version"):
                 print("Version: " + VERSION)
                 exit()
-        
+            elif opt in ("-c", "--clear"):
+                print("Caution: synchronization errors are cleared.")
+                print("This may cause loss of files if not executed correctly !!!")
+                print("Are you sure to continue (y/N)? ", end = "")
+                ans = input()
+                if ans.lower() == "y" or ans.lower() == "yes":
+                    if len(args) == 1:
+                        found = False
+                        for cursync in self.syncs:
+                            if cursync['name'].replace("-->","").replace("<--","") == args[0]:
+                                found = True
+                                print("Clearing errors for: " + cursync['name'])
+                                srcTsPath = os.path.join(cursync["source"], TS_FILENAME)
+                                dstTsPath = os.path.join(cursync["destination"], TS_FILENAME)
+                                if os.path.isfile(srcTsPath):
+                                    os.remove(srcTsPath)
+                                if os.path.isfile(dstTsPath):
+                                    os.remove(dstTsPath)
+                        if not found:
+                            print("<sync> name doesn't exist")
+                    else:
+                        print("Please enter <sync> as argument")
+                else:
+                    print("Synchronization errors not cleared")
+                exit()
+
     def GetXML(self):
         etcpath = "/etc/"
         XMLpath = ""
@@ -468,10 +551,10 @@ class SyncWatch(object):
                 else:
                     self.logger.error("No XML file found")
                     exit(1)
-        try:         
+        try:
             tree = ET.parse(XMLpath)
             root = tree.getroot()
-        
+
             for child in root:
                 cursync={}
                 cursync['name']=child.tag
@@ -479,46 +562,46 @@ class SyncWatch(object):
                     cursync[toy.tag]=Common.gettype(toy.text)
                 if Common.checkkey(cursync,'enabled') != None and not Common.checkkey(cursync,'enabled'):
                     self.logger.info("{} is currently disabled and will not be synced".format(cursync['name']))
-                    break
-                cursync['observer']=None
-                origname=cursync['name']
-                cursync['name']=origname+"-->"
-                cursync['1']=Event()
-                cursync['list1']=[]
-                if Common.checkkey(cursync,'reversesync') == True: 
-                    cursync['2']=Event()
-                    cursync['list2']=[]
                 else:
-                    cursync['2']=None
-                    cursync['list2']=None
-                self.syncs.append(cursync.copy())
-                if Common.checkkey(cursync,'reversesync') == True:
-                    if Common.checkkey(cursync,'source') and Common.checkkey(cursync,'destination'):
-                        tempdest = cursync['destination']
-                        cursync['destination']=cursync['source']
-                        cursync['source']=tempdest
-                        cursync['name']=origname+"<--"
-                        temp2=cursync['2']
-                        cursync['2']=cursync['1']
-                        cursync['1']=temp2
-                        templist2=cursync['list2']
-                        cursync['list2']=cursync['list1']
-                        cursync['list1']=templist2
-                        self.syncs.append(cursync)
+                    cursync['observer']=None
+                    origname=cursync['name']
+                    cursync['name']=origname+"-->"
+                    cursync['1']=Event()
+                    cursync['list1']=[]
+                    if Common.checkkey(cursync,'reversesync') == True:
+                        cursync['2']=Event()
+                        cursync['list2']=[]
                     else:
-                        print("Error adding job for reserve syncing")
-                
+                        cursync['2']=None
+                        cursync['list2']=None
+                    self.syncs.append(cursync.copy())
+                    if Common.checkkey(cursync,'reversesync') == True:
+                        if Common.checkkey(cursync,'source') and Common.checkkey(cursync,'destination'):
+                            tempdest = cursync['destination']
+                            cursync['destination']=cursync['source']
+                            cursync['source']=tempdest
+                            cursync['name']=origname+"<--"
+                            temp2=cursync['2']
+                            cursync['2']=cursync['1']
+                            cursync['1']=temp2
+                            templist2=cursync['list2']
+                            cursync['list2']=cursync['list1']
+                            cursync['list1']=templist2
+                            self.syncs.append(cursync)
+                        else:
+                            print("Error adding job for reserve syncing")
+
         except Exception as e:
             self.logger.error("Error parsing xml file")
             self.logger.error("Check XML file syntax for errors")
             self.logger.exception(e)
             exit(1)
-        
+
     def title(self):
         print("SyncWatch file and folder synchronization")
         print("Version: " + VERSION)
         print(" ")
-    
+
     def GetLogger(self):
         logpath = "/var/log"
         LoggerPath = ""
@@ -532,12 +615,12 @@ class SyncWatch(object):
                 LoggerPath = os.path.join(os.path.expanduser('~'),LOG_FILENAME)
             else:
                 print("Error opening logger, exit syncwatch")
-                exit(1) 
+                exit(1)
         return (LoggerPath)
-        
+
     def exit_app(self, signum, frame):
         self.exitevent.set()
-    
+
 #########################################################
 if __name__ == "__main__":
     SyncWatch().run(sys.argv[1:])

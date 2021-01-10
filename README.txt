@@ -1,4 +1,4 @@
-SyncWatch v0.8.5
+SyncWatch v0.95
 
 SyncWatch service to synchronize 2 locations on file or folder change
 ========= ======= == =========== = ========= == ==== == ====== ======
@@ -13,6 +13,13 @@ As systemd service it starts after rc.local, assuming every location is mounted 
 The service is completely configurable via syncwatch.xml, located in /etc/syncwatch.xml.
 
 The xml file described the syncronizations to be done.
+
+As of version 0.95 a timestamp file is added to prevent synchronizing errors when a location is
+temporarily unavailable. e.g. in case of a network location. Synchronization is resumed when the 
+device comes online again. If you want this behavior after a restart of the service, initsync
+needs to be set to true. Mismatches can be cleared with the --clear command. Take care that files
+can be lost in the case that older snapshots of a specific folder is used, so you should know what 
+you are doing. 
 	
 Add a sync to syncs to add a synchronization. You can name it anything you like. e.g. mybackup:
 <mybackup>
