@@ -9,7 +9,7 @@
 #########################################################
 
 ####################### GLOBALS #########################
-VERSION      = "0.95"
+VERSION      = "0.96"
 XML_FILENAME = "syncwatch.xml"
 LOG_FILENAME = "syncwatch.log"
 SYNC_TOOL    = "rsync"
@@ -31,34 +31,8 @@ import locale
 import time
 from threading import Thread, Timer, Lock, Event
 from subprocess import run, PIPE, DEVNULL
-try:
-    from watchdog.observers import Observer
-    from watchdog.events import FileSystemEventHandler
-except:
-    try:
-        import pip
-        try:
-            package="watchdog"
-            if hasattr(pip, 'main'):
-                pip.main(['install', package])
-            else:
-                pip._internal.main(['install', package])
-        except:
-            print("SyncWatch file and folder synchronization")
-            print("Version: " + VERSION)
-            print(" ")
-            print("Unable to install required packages")
-            print("watchdog not installed")
-            exit(1)
-        from watchdog.observers import Observer
-        from watchdog.events import FileSystemEventHandler
-    except:
-        print("SyncWatch file and folder synchronization")
-        print("Version: " + VERSION)
-        print(" ")
-        print("Pip not installed, please install pip to continue")
-        print("SyncWatch is not able to install the required packages")
-        exit(1)
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
 #########################################################
 # Class : Common                                        #

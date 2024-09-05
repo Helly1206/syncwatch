@@ -1,6 +1,12 @@
+syncwatch (0.96) stable; urgency=low
+
+  * Because pip requires venv from python 3.12, pip removed and apt dependencies added.
+
+ -- Helly1206 <hellyrulez@hotmail.com>  Thu, 5 Sep 2024 12:07:28 +0100
+
 syncwatch (0.95) stable; urgency=low
 
-  * dded timestamp file to sync safely even when a drive is temporarily disabled
+  * Added timestamp file to sync safely even when a drive is temporarily disabled
 
  -- Helly1206 <hellyrulez@hotmail.com>  Sun, 10 Jan 2021 13:09:15 +0100
 

@@ -1,4 +1,4 @@
-SyncWatch v0.95
+SyncWatch v0.96
 
 SyncWatch service to synchronize 2 locations on file or folder change
 ========= ======= == =========== = ========= == ==== == ====== ======
